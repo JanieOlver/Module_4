@@ -96,12 +96,20 @@ We haven't covered regressions in R yet. Use the function *lm()*. The function t
 lfit <- lm(totchi ~ 1 + genold + party + female + age +
              sqage + srvlng + sqsrv + white + region +
              rgroup, data = comb)
+
+# run the regression for number of girls
+lfitf <- lm(ngirls ~ 1 + genold + party + female + age +
+             sqage + srvlng + sqsrv + white + region +
+             rgroup, data = comb)
 ```
 
 * Save the main coefficient of interest ($\beta_1$)
 ```{r, message = FALSE}
 beta1all <- summary(lfit)[["coefficients"]][2, 1]
 sbeta1all <- summary(lfit)[["coefficients"]][2, 2]
+
+beta1allf <- summary(lfitf)[["coefficients"]][2, 1]
+sbeta1allf <- summary(lfitf)[["coefficients"]][2, 2]
 ```
 
 * Run the same regression separately for Democrats and Republicans (assign the independent to one of the parties). Save the coefficient and standard error of *genold*
@@ -113,34 +121,55 @@ rcomb <- subset(comb, comb$party == "R"
 dfit <- lm(totchi ~ 1 + genold + female + age + sqage +
              srvlng + sqsrv + white + region + rgroup,
             data = dcomb)
+dfitf <- lm(ngirls ~ 1 + genold + female + age + sqage +
+             srvlng + sqsrv + white + region + rgroup,
+           data = dcomb)
 
 rfit <- lm(totchi ~ 1 + genold + female + age + sqage +
+             srvlng + sqsrv + white + region + rgroup,
+           data = rcomb)
+rfitf <- lm(ngirls ~ 1 + genold + female + age + sqage +
              srvlng + sqsrv + white + region + rgroup,
            data = rcomb)
 
 beta1d <- summary(dfit)[["coefficients"]][2, 1]
 sbeta1d <- summary(dfit)[["coefficients"]][2, 2]
+beta1df <- summary(dfitf)[["coefficients"]][2, 1]
+sbeta1df <- summary(dfitf)[["coefficients"]][2, 2]
 
 beta1r <- summary(rfit)[["coefficients"]][2, 1]
 sbeta1r <- summary(rfit)[["coefficients"]][2, 2]
+beta1rf <- summary(rfitf)[["coefficients"]][2, 1]
+sbeta1rf <- summary(rfitf)[["coefficients"]][2, 2]
 ```
 
 * Collect all the *genold* coefficients from the six regressions, including their standard errors and arrange them in a table as in the paper.
 ```{r, message = FALSE}
-nm <- c("All", "Dems", "Reps + Ind")
-b <- c(beta1all, beta1d, beta1r)
+nm <- c("a", "b", "c", "d", "e", "f")
+b <- c(beta1all, beta1allf, beta1d, beta1df, beta1r, beta1rf)
 names(b) <- nm
-s <- c(sbeta1all, sbeta1d, sbeta1r)
+s <- c(sbeta1all, sbeta1allf, sbeta1d, sbeta1df, sbeta1r, sbeta1rf)
 names(s) <- nm
 
 tab <- bind_rows(b,s)
+names(tab) <- nm
+
+tab <- as.data.frame(tab)
+rownames(tab) <- c("Estimate", "Standard Error")
+colnames(tab) <- c("Number of daughters", "Number of children",
+                   "Number of daughters", "Number of children",
+                   "Number of daughters", "Number of children")
+
 ```
 
 * print the table
 ```{r, message = FALSE}
-tab <- as.data.frame(tab)
-rownames(tab) <- c("Estimate", "Standard Error")
-kable(tab) %>% 
+kable(tab, align = "c") %>% 
   kable_styling() %>%
-  add_header_above(c(" " = 1, "Party Affiliation" = 3), bold = TRUE)
+  row_spec(0, italic = TRUE, bold = TRUE) %>%
+  column_spec(1, italic = TRUE, bold = TRUE, width = "3cm") %>%
+    # Would need to be 2.3 cm for HTML as otherwise does not fit
+  column_spec(2:7, width = "2 cm") %>%
+  add_header_above(c(" " = 1, "All" = 2, "Dems" = 2, "Reps + Ind" = 2), 
+                   bold = TRUE)
 ```
