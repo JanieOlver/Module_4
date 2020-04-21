@@ -1,0 +1,146 @@
+---
+title: "Module 4 - Instructions"
+author: "Oliver Engist"
+date: "3/25/2020"
+output:
+  html_document:
+    df_print: paged
+    warning: false
+  pdf_document: default
+---
+
+In the next assignment we want to replicate some plots from the paper "Female Socialization: How Daughters Affect Their Legislator Fathers' Voting on Women's Issues" (Washington, 2008). The paper explores whether having a daughter makes politicians more sensitive to women's rights issues and how this is reflected in their voting behavior. The main identifying assumption is that after controlling for the number of children, the gender composition is random. This might be violated if families that have a preference for girls keep having children until they have a girl. In this assignment we will prepare a dataset that allows us to test whether families engage in such a "female child stopping rule".
+
+I encourage you to take a look at the paper, as we will come back to it later in the course. 
+
+# Setup
+
+* Load the libraries "Rio" and "tidyverse"
+```{r, message=FALSE, warning=FALSE}
+
+library(rio)
+library(tidyverse)
+library(kableExtra)
+
+```
+
+* Change the path of the working directory to your working directory.
+
+* import the data sets *basic.dta* and *genold108.dta*
+```{r, message=FALSE}
+basic <- import("basic.dta")
+genold <- import("genold108.dta")
+```
+
+* create a subset of the 108th congress from the *basic* dataset
+```{r, message=FALSE}
+IO8 <- basic[basic$congress == 108,]
+genold <- genold[order(genold$name),]
+```
+
+* join this subset with the *genold* dataset
+```{r, message=FALSE}
+genold <- subset(genold, select = -c(name, statenam, district))
+comb <- bind_cols(genold, IO8)
+```
+
+# Data preparation
+
+* check table 1 in the appendix of the paper and decide which variables are necessary for the analysis (check the footnote for control variables)
+* drop all other variables.
+```{r, message=FALSE}
+comb <- comb[, c("name", "genold", "party", 
+                 "ngirls", "nboys", "female", "age",
+                 "srvlng", "white", "region", "totchi",
+                 "rgroup")]
+```
+
+* Recode *genold* such that gender is a factor variable and missing values are coded as NA
+```{r, message = FALSE}
+comb$genold <- as.factor(comb$genold)
+comb$genold[comb$genold == ""] <- NA
+```
+
+* Recode *party* as a factor with 3 levels (D, R, I)
+```{r, message = FALSE}
+comb$party <- factor(comb$party, levels = c(1, 2, 3),
+                     labels=c("D", "R", "I"))
+```
+
+* Recode *rgroup* and *region* as factors.
+```{r, message = FALSE}
+comb$rgroup <- factor(comb$rgroup)
+comb$region <- factor(comb$region) 
+```
+
+* generate variables for age squared and service length squared
+```{r, message = FALSE}
+comb$sqage <- comb$age ^ 2
+comb$sqsrv <- comb$srvlng ^ 2
+```
+
+* create an additional variable of the number of children as factor variable
+```{r, message = FALSE}
+comb <- subset(comb, !is.na(comb$totchi))
+comb <- subset(comb, !is.na(comb$genold))
+
+comb$totchi <- as.numeric(comb$totchi)
+```
+
+# Replicationg Table 1 from the Appendix
+
+We haven't covered regressions in R yet. Use the function *lm()*. The function takes the regression model (formula) and the data as an input. The model is written as $y \sim x$, where $x$ stands for any linear combination of regressors (e.g. $y \sim x_1 + x_2 + female$). Use the help file to understand the function.
+
+* Run the regression $total.children = \beta_0 + \beta_1 gender.oldest + \gamma'X$ where $\gamma$ stands for a vector of coefficients and $X$ is a matrix that contains all columns that are control variables.\footnote{This is just a short notation instead of writing the full model with all control variables $totchi = \beta_0 + \beta_1 genold + \gamma_1 age + \gamma_2 age^2 + \gamma_3 Democrat + ... + \epsilon$ which quickly gets out of hand for large models.}
+```{r, message = FALSE}
+lfit <- lm(totchi ~ 1 + genold + party + female + age +
+             sqage + srvlng + sqsrv + white + region +
+             rgroup, data = comb)
+```
+
+* Save the main coefficient of interest ($\beta_1$)
+```{r, message = FALSE}
+beta1all <- summary(lfit)[["coefficients"]][2, 1]
+sbeta1all <- summary(lfit)[["coefficients"]][2, 2]
+```
+
+* Run the same regression separately for Democrats and Republicans (assign the independent to one of the parties). Save the coefficient and standard error of *genold*
+```{r, message = FALSE}
+dcomb <- subset(comb, comb$party == "D")
+rcomb <- subset(comb, comb$party == "R" 
+                | comb$party == "I")
+
+dfit <- lm(totchi ~ 1 + genold + female + age + sqage +
+             srvlng + sqsrv + white + region + rgroup,
+            data = dcomb)
+
+rfit <- lm(totchi ~ 1 + genold + female + age + sqage +
+             srvlng + sqsrv + white + region + rgroup,
+           data = rcomb)
+
+beta1d <- summary(dfit)[["coefficients"]][2, 1]
+sbeta1d <- summary(dfit)[["coefficients"]][2, 2]
+
+beta1r <- summary(rfit)[["coefficients"]][2, 1]
+sbeta1r <- summary(rfit)[["coefficients"]][2, 2]
+```
+
+* Collect all the *genold* coefficients from the six regressions, including their standard errors and arrange them in a table as in the paper.
+```{r, message = FALSE}
+nm <- c("All", "Dems", "Reps + Ind")
+b <- c(beta1all, beta1d, beta1r)
+names(b) <- nm
+s <- c(sbeta1all, sbeta1d, sbeta1r)
+names(s) <- nm
+
+tab <- bind_rows(b,s)
+```
+
+* print the table
+```{r, message = FALSE}
+tab <- as.data.frame(tab)
+rownames(tab) <- c("Estimate", "Standard Error")
+kable(tab) %>% 
+  kable_styling() %>%
+  add_header_above(c(" " = 1, "Party Affiliation" = 3), bold = TRUE)
+```
